@@ -17,6 +17,7 @@ const paymentRoutes = require("./routes/payments");
 const vendorRoutes = require("./routes/vendor");
 const adminRoutes = require("./routes/admin");
 const notificationRoutes = require("./routes/notifications");
+const verificationRoutes = require("./routes/verification");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,6 +80,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/vendor", vendorRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/verification", verificationRoutes);
 
 // 404 handler
 app.use((req, res) => {

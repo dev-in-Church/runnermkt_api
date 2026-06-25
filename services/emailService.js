@@ -1,7 +1,13 @@
 const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = "orders@sporttechies.com"; // Use Resend's test domain for development
+
+// Order notification emails - set via RESEND_ORDERS_EMAIL env var (e.g., orders@runnermkt.com)
+const ORDERS_EMAIL = process.env.RESEND_ORDERS_EMAIL || "onboarding@resend.dev";
+
+// Verification & account emails - set via RESEND_NOREPLY_EMAIL env var (e.g., noreply@runnermkt.com)
+const NOREPLY_EMAIL =
+  process.env.RESEND_NOREPLY_EMAIL || "onboarding@resend.dev";
 
 // Send vendor notification email
 const sendVendorOrderNotification = async (vendor) => {
@@ -53,7 +59,7 @@ const sendVendorOrderNotification = async (vendor) => {
     `;
 
     const result = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: ORDERS_EMAIL,
       to: vendor.email,
       subject: `New Order #${vendor.orderNumber} - Products Ordered`,
       html: html,
@@ -77,8 +83,6 @@ const sendAdminOrderNotification = async (adminEmail, order) => {
         <td style="padding: 10px; border: 1px solid #ddd;">${item.productName}</td>
         <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">${item.quantity}</td>
         <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${item.vendorName || "N/A"}</td>
-        <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${item.vendorEmail || "N/A"}</td>
-        <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${item.vendorPhone || "N/A"}</td>
       </tr>
     `,
       )
@@ -101,8 +105,6 @@ const sendAdminOrderNotification = async (adminEmail, order) => {
               <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Product</th>
               <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Qty</th>
               <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Vendor</th>
-              <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Vendor Email</th>
-              <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Vendor Phone</th>
             </tr>
           </thead>
           <tbody>
@@ -123,7 +125,7 @@ const sendAdminOrderNotification = async (adminEmail, order) => {
     `;
 
     const result = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: ORDERS_EMAIL,
       to: adminEmail,
       subject: `New Order #${order.orderNumber} - Admin Alert`,
       html: html,
@@ -191,7 +193,7 @@ const sendCustomerOrderConfirmation = async (customer) => {
             <h4 style="margin-top: 0;">Delivery Information</h4>
             <p>Delivery Address: ${customer.shippingAddress}</p>
             <p>Contact Number: ${customer.shippingPhone}</p>
-            <p>Estimated Delivery: Within 3-12 hours</p>
+            <p>Estimated Delivery: Within 3-5 business days</p>
           </div>
 
           <p style="margin-top: 20px; color: #666; font-size: 12px;">
@@ -203,7 +205,7 @@ const sendCustomerOrderConfirmation = async (customer) => {
     `;
 
     const result = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: ORDERS_EMAIL,
       to: customer.email,
       subject: `Order Confirmation #${customer.orderNumber} - RunnerMKT`,
       html: html,
@@ -215,8 +217,88 @@ const sendCustomerOrderConfirmation = async (customer) => {
   }
 };
 
+// Send email verification link
+const sendVerificationEmail = async ({ email, userName, verificationLink }) => {
+  try {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <div style="background-color: #1a1a1a; color: white; padding: 32px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Verify Your Email</h1>
+            <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">RunnerMKT - Complete Your Registration</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 32px 20px; color: #333333; line-height: 1.6;">
+            <p style="margin: 0 0 16px 0; font-size: 16px;">Hi ${userName || "User"},</p>
+            
+            <p style="margin: 0 0 24px 0; font-size: 15px; color: #555555;">
+                Thank you for creating an account with RunnerMKT. To complete your registration and activate your account, please verify your email address.
+            </p>
+            
+            <!-- CTA Button -->
+            <div style="margin: 32px 0; text-align: center;">
+                <a href="${verificationLink}" style="background-color: #1a1a1a; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 15px;">
+                    Verify Email Address
+                </a>
+            </div>
+            
+            <!-- Alternative link text -->
+            <p style="margin: 24px 0 0 0; font-size: 13px; color: #999999; word-break: break-all;">
+                Or copy this link into your browser: ${verificationLink}
+            </p>
+            
+            <!-- Security note -->
+            <p style="margin: 24px 0 0 0; padding-top: 24px; border-top: 1px solid #e5e5e5; font-size: 13px; color: #999999;">
+                This verification link expires in 24 hours for security purposes. If you didn&apos;t create this account, please disregard this email.
+            </p>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f9f9f9; padding: 24px 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e5e5;">
+            <p style="margin: 0; font-size: 12px; color: #999999;">
+                © 2026 RunnerMKT. All rights reserved.
+            </p>
+            <p style="margin: 8px 0 0 0; font-size: 12px; color: #999999;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    console.log(
+      "[v0] Sending verification email FROM:",
+      NOREPLY_EMAIL,
+      "TO:",
+      email,
+    );
+
+    const response = await resend.emails.send({
+      from: NOREPLY_EMAIL,
+      to: email,
+      subject: "Verify Your RunnerMKT Account",
+      html,
+    });
+
+    console.log("[v0] Verification email response:", response);
+    console.log("[v0] Verification email sent to:", email);
+  } catch (err) {
+    console.error("[v0] Verification email send error:", err);
+    throw err;
+  }
+};
+
 module.exports = {
   sendVendorOrderNotification,
   sendAdminOrderNotification,
   sendCustomerOrderConfirmation,
+  sendVerificationEmail,
 };
