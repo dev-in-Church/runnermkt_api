@@ -337,9 +337,15 @@ const getProducts = async (req, res) => {
       LIMIT $${limitParam} OFFSET $${offsetParam}
     `;
 
+    // FIX: this previously omitted the vendor_profiles join. Since
+    // whereClause can contain `AND vp.id = $N` (when ?vendor=... is passed),
+    // running this without joining `vp` threw "missing FROM-clause entry
+    // for table vp", which rejected the Promise.all below and sent every
+    // vendor-filtered request into the mock-data catch block.
     const countSql = `
       SELECT COUNT(*) as total FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN vendor_profiles vp ON p.vendor_id = vp.id
       ${whereClause}
     `;
 
@@ -370,6 +376,7 @@ const getProducts = async (req, res) => {
       search,
       featured,
       brand,
+      vendor,
       sort,
     } = req.query;
     let filtered = [...MOCK_PRODUCTS];
@@ -385,6 +392,11 @@ const getProducts = async (req, res) => {
       filtered = filtered.filter(
         (p) => p.brand && p.brand.toLowerCase() === brand.toLowerCase(),
       );
+    // NOTE: mock products don't carry a vendor id (only vendor_name), so
+    // vendor filtering can't be meaningfully replicated in this fallback
+    // path. Left unfiltered here rather than silently matching everything
+    // against an id that doesn't exist on any mock row (which would just
+    // return zero results and look identical to "no products" bugs).
     if (search)
       filtered = filtered.filter(
         (p) =>
