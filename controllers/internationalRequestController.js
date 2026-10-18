@@ -5,7 +5,34 @@ const SHIPPING_AUTHORIZATION_THRESHOLD_USD = 10000;
 const createRequest = async (req, res) => {
   const client = await require("../config/database").pool.connect();
   try {
-    const { items, customerNotes, shippingNotes } = req.body;
+    const {
+      items,
+      contactName,
+      contactCountry,
+      contactPhone,
+      contactEmail,
+      deliveryAddress,
+      cooperationDetails,
+      customerNotes,
+      shippingNotes,
+    } = req.body;
+    if (
+      ![
+        contactName,
+        contactCountry,
+        contactPhone,
+        contactEmail,
+        deliveryAddress,
+        cooperationDetails,
+      ].every((value) => typeof value === "string" && value.trim())
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Name, country, phone, email, address, and cooperation details are required.",
+        });
+    }
     if (!Array.isArray(items) || items.length === 0) {
       return res
         .status(400)
@@ -39,9 +66,20 @@ const createRequest = async (req, res) => {
     });
     const subtotal = normalized.reduce((sum, item) => sum + item.total, 0);
     const requestResult = await client.query(
-      `INSERT INTO international_order_requests (customer_id, subtotal, customer_notes, shipping_notes)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.user.id, subtotal, customerNotes || null, shippingNotes || null],
+      `INSERT INTO international_order_requests (customer_id, subtotal, customer_notes, shipping_notes, contact_name, contact_country, contact_phone, contact_email, delivery_address, cooperation_details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [
+        req.user.id,
+        subtotal,
+        customerNotes || null,
+        shippingNotes || null,
+        contactName.trim(),
+        contactCountry.trim(),
+        contactPhone.trim(),
+        contactEmail.trim().toLowerCase(),
+        deliveryAddress.trim(),
+        cooperationDetails.trim(),
+      ],
     );
     const request = requestResult.rows[0];
     for (const item of normalized) {
@@ -52,16 +90,48 @@ const createRequest = async (req, res) => {
       );
     }
     await client.query("COMMIT");
-    res.status(201).json({
-      request,
-      shippingAuthorizationThreshold: SHIPPING_AUTHORIZATION_THRESHOLD_USD,
-    });
+
+    const adminUsers = await query("SELECT id FROM users WHERE role = 'admin'");
+    const vendorUsers = await query(
+      `SELECT DISTINCT vp.user_id FROM international_order_request_items ri JOIN products p ON p.id = ri.product_id JOIN vendor_profiles vp ON vp.id = p.vendor_id WHERE ri.request_id = $1`,
+      [request.id],
+    );
+    const notifications = adminUsers.rows.map((admin) => [
+      admin.id,
+      "international_request",
+      "New international sourcing request",
+      `A new USD ${Number(subtotal).toLocaleString()} request is ready for review.`,
+      `/admin/dashboard`,
+    ]);
+    vendorUsers.rows.forEach((vendor) =>
+      notifications.push([
+        vendor.user_id,
+        "international_request",
+        "New international product request",
+        "A customer requested one of your international products.",
+        `/vendor/dashboard/orders`,
+      ]),
+    );
+    for (const [userId, type, title, message, link] of notifications) {
+      await query(
+        "INSERT INTO notifications (user_id, type, title, message, link, is_read) VALUES ($1, $2, $3, $4, $5, false)",
+        [userId, type, title, message, link],
+      );
+    }
+    res
+      .status(201)
+      .json({
+        request,
+        shippingAuthorizationThreshold: SHIPPING_AUTHORIZATION_THRESHOLD_USD,
+      });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Create international request error:", error);
-    res.status(400).json({
-      error: error.message || "Unable to create international request.",
-    });
+    res
+      .status(400)
+      .json({
+        error: error.message || "Unable to create international request.",
+      });
   } finally {
     client.release();
   }

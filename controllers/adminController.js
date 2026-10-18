@@ -119,7 +119,6 @@ const getVendors = async (req, res) => {
   }
 };
 
-//intl
 const updateVendorType = async (req, res) => {
   try {
     const { id } = req.params;
@@ -353,7 +352,24 @@ const authorizeInternationalShipping = async (req, res) => {
       return res
         .status(404)
         .json({ error: "Request not found or already authorized." });
-    res.json({ request: result.rows[0] });
+    const request = result.rows[0];
+    const vendors = await query(
+      `SELECT DISTINCT vp.user_id FROM international_order_request_items ri JOIN products p ON p.id = ri.product_id JOIN vendor_profiles vp ON vp.id = p.vendor_id WHERE ri.request_id = $1`,
+      [request.id],
+    );
+    for (const vendor of vendors.rows) {
+      await query(
+        "INSERT INTO notifications (user_id, type, title, message, link, is_read) VALUES ($1, $2, $3, $4, $5, false)",
+        [
+          vendor.user_id,
+          "shipping",
+          "International shipping authorized",
+          `Admin authorized shipping for request ${request.id}.`,
+          "/vendor/dashboard/orders",
+        ],
+      );
+    }
+    res.json({ request });
   } catch (err) {
     res.status(500).json({ error: "Failed to authorize shipping." });
   }
