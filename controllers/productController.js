@@ -259,6 +259,7 @@ const MOCK_PRODUCTS = [
 // Get all products with filters
 const getProducts = async (req, res) => {
   try {
+    //intl mod
     const {
       page = 1,
       limit = 20,
@@ -270,6 +271,7 @@ const getProducts = async (req, res) => {
       featured,
       brand,
       vendor,
+      vendorType,
     } = req.query;
     const offset = (page - 1) * limit;
     let whereClause = "WHERE p.is_active = true";
@@ -290,6 +292,12 @@ const getProducts = async (req, res) => {
       paramCount++;
       whereClause += ` AND vp.id = $${paramCount}`;
       params.push(vendor);
+    }
+    //intl
+    if (vendorType === "local" || vendorType === "international") {
+      paramCount++;
+      whereClause += ` AND vp.vendor_type = $${paramCount}`;
+      params.push(vendorType);
     }
     if (search) {
       paramCount++;
@@ -328,7 +336,7 @@ const getProducts = async (req, res) => {
     params.push(parseInt(offset));
 
     const sql = `
-      SELECT p.*, c.name as category_name, c.slug as category_slug, vp.store_name as vendor_name, vp.is_verified as vendor_verified
+      SELECT p.*, c.name as category_name, c.slug as category_slug, vp.store_name as vendor_name, vp.is_verified as vendor_verified, vp.vendor_type
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN vendor_profiles vp ON p.vendor_id = vp.id
@@ -447,7 +455,7 @@ const getProduct = async (req, res) => {
   try {
     const { slug } = req.params;
     const result = await query(
-      `SELECT p.*, c.name as category_name, c.slug as category_slug, vp.store_name as vendor_name, vp.is_verified as vendor_verified, vp.id as vendor_profile_id
+      `SELECT p.*, c.name as category_name, c.slug as category_slug, vp.store_name as vendor_name, vp.is_verified as vendor_verified, vp.vendor_type, vp.id as vendor_profile_id
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN vendor_profiles vp ON p.vendor_id = vp.id
