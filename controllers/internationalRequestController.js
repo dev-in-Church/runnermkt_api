@@ -1,6 +1,6 @@
 const { query } = require("../config/database");
 
-const MINIMUM_SUBTOTAL_USD = 10000;
+const SHIPPING_AUTHORIZATION_THRESHOLD_USD = 10000;
 
 const createRequest = async (req, res) => {
   const client = await require("../config/database").pool.connect();
@@ -38,15 +38,6 @@ const createRequest = async (req, res) => {
       return { product, quantity, total: Number(product.price) * quantity };
     });
     const subtotal = normalized.reduce((sum, item) => sum + item.total, 0);
-    if (subtotal < MINIMUM_SUBTOTAL_USD) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: `International orders require a minimum product value of $${MINIMUM_SUBTOTAL_USD.toLocaleString()}.`,
-        minimumSubtotal: MINIMUM_SUBTOTAL_USD,
-        subtotal,
-      });
-    }
-
     const requestResult = await client.query(
       `INSERT INTO international_order_requests (customer_id, subtotal, customer_notes, shipping_notes)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -61,7 +52,10 @@ const createRequest = async (req, res) => {
       );
     }
     await client.query("COMMIT");
-    res.status(201).json({ request, minimumSubtotal: MINIMUM_SUBTOTAL_USD });
+    res.status(201).json({
+      request,
+      shippingAuthorizationThreshold: SHIPPING_AUTHORIZATION_THRESHOLD_USD,
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Create international request error:", error);
@@ -90,4 +84,8 @@ const listMyRequests = async (req, res) => {
   }
 };
 
-module.exports = { createRequest, listMyRequests, MINIMUM_SUBTOTAL_USD };
+module.exports = {
+  createRequest,
+  listMyRequests,
+  SHIPPING_AUTHORIZATION_THRESHOLD_USD,
+};

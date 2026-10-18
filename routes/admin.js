@@ -9,6 +9,8 @@ const {
   verifyVendor,
   unverifyVendor,
   updateVendorType,
+  getInternationalRequests,
+  authorizeInternationalShipping,
   getAllOrders,
   updateOrderStatus,
   getAllPayments,

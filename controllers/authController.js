@@ -140,6 +140,7 @@ const vendorRegister = async (req, res) => {
       phone,
       storeName,
       storeDescription,
+      country = "Kenya",
     } = req.body;
     if (!email || !password || !firstName || !lastName || !storeName) {
       return res
@@ -159,8 +160,14 @@ const vendorRegister = async (req, res) => {
     );
     const user = userResult.rows[0];
     await query(
-      "INSERT INTO vendor_profiles (user_id, store_name, store_description) VALUES ($1, $2, $3)",
-      [user.id, storeName, storeDescription || null],
+      `INSERT INTO vendor_profiles (user_id, store_name, store_description, country, vendor_type) VALUES ($1, $2, $3, $4, $5)`,
+      [
+        user.id,
+        storeName,
+        storeDescription || null,
+        country,
+        country === "Kenya" ? "local" : "international",
+      ],
     );
     const token = generateToken({
       id: user.id,

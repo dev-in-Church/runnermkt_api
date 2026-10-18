@@ -327,6 +327,38 @@ const getAllSubscriptions = async (req, res) => {
   }
 };
 
+const getInternationalRequests = async (req, res) => {
+  try {
+    const result = await query(`SELECT r.*, u.first_name, u.last_name, u.email,
+      COALESCE(SUM(CASE WHEN r.status IN ('submitted','reviewing','quoted') THEN r.subtotal ELSE 0 END) OVER (), 0) AS pending_pool_total
+      FROM international_order_requests r JOIN users u ON u.id = r.customer_id
+      ORDER BY r.created_at DESC`);
+    res.json({
+      requests: result.rows,
+      shippingThreshold: 10000,
+      poolTotal: Number(result.rows[0]?.pending_pool_total || 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load international requests." });
+  }
+};
+
+const authorizeInternationalShipping = async (req, res) => {
+  try {
+    const result = await query(
+      `UPDATE international_order_requests SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status IN ('submitted','reviewing','quoted') RETURNING *`,
+      [req.params.id],
+    );
+    if (!result.rows.length)
+      return res
+        .status(404)
+        .json({ error: "Request not found or already authorized." });
+    res.json({ request: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to authorize shipping." });
+  }
+};
+
 module.exports = {
   getDashboard,
   getUsers,
@@ -335,6 +367,8 @@ module.exports = {
   verifyVendor,
   unverifyVendor,
   updateVendorType,
+  getInternationalRequests,
+  authorizeInternationalShipping,
   getAllOrders,
   updateOrderStatus,
   getAllPayments,

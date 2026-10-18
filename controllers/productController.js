@@ -275,6 +275,8 @@ const getProducts = async (req, res) => {
     } = req.query;
     const offset = (page - 1) * limit;
     let whereClause = "WHERE p.is_active = true";
+    if (vendorType !== "international")
+      whereClause += " AND COALESCE(vp.vendor_type, 'local') = 'local'";
     const params = [];
     let paramCount = 0;
 
@@ -354,7 +356,7 @@ const getProducts = async (req, res) => {
       SELECT COUNT(*) as total FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN vendor_profiles vp ON p.vendor_id = vp.id
-      ${whereClause}
+       ${whereClause}
     `;
 
     const [products, countResult] = await Promise.all([
