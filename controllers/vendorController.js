@@ -106,7 +106,7 @@ const getVendorProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const vp = await query(
-      "SELECT id, is_verified FROM vendor_profiles WHERE user_id = $1",
+      "SELECT id, is_verified, vendor_type FROM vendor_profiles WHERE user_id = $1",
       [req.user.id],
     );
     if (vp.rows.length === 0)
@@ -129,6 +129,14 @@ const createProduct = async (req, res) => {
     } = req.body;
     if (!name || !price)
       return res.status(400).json({ error: "Name and price are required." });
+    const currency = vp.rows[0].vendor_type === "international" ? "USD" : "KES";
+    if (
+      Number(price) <= 0 ||
+      (comparePrice != null && Number(comparePrice) <= 0)
+    )
+      return res
+        .status(400)
+        .json({ error: "Prices must be greater than zero." });
     if (!thumbnail)
       return res.status(400).json({ error: "Product image is required." });
 
@@ -141,8 +149,8 @@ const createProduct = async (req, res) => {
       Date.now().toString(36);
 
     const result = await query(
-      `INSERT INTO products (vendor_id, category_id, name, slug, description, short_description, price, compare_price, quantity, brand, images, thumbnail, tags, specifications, sku)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      `INSERT INTO products (vendor_id, category_id, name, slug, description, short_description, price, compare_price, currency, quantity, brand, images, thumbnail, tags, specifications, sku)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         vp.rows[0].id,
         categoryId || null,
@@ -152,6 +160,7 @@ const createProduct = async (req, res) => {
         shortDescription,
         price,
         comparePrice || null,
+        currency,
         quantity || 0,
         brand || null,
         images || "{}",
@@ -171,13 +180,16 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const vp = await query(
-      "SELECT id FROM vendor_profiles WHERE user_id = $1",
+      "SELECT id, vendor_type FROM vendor_profiles WHERE user_id = $1",
       [req.user.id],
     );
     if (vp.rows.length === 0)
       return res.status(404).json({ error: "Vendor not found." });
     const { id } = req.params;
-    const fields = req.body;
+    const fields = { ...req.body };
+    delete fields.currency;
+    if (vp.rows[0].vendor_type === "international") fields.currency = "USD";
+    else fields.currency = "KES";
 
     const setClauses = [];
     const values = [];
@@ -188,6 +200,7 @@ const updateProduct = async (req, res) => {
       "short_description",
       "price",
       "compare_price",
+      "currency",
       "category_id",
       "quantity",
       "brand",
